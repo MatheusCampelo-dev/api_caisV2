@@ -1,0 +1,17 @@
+# Dependências locais (o Docker vai instalar as próprias)
+node_modules
+npm-debug.log
+
+# Arquivos de controle de versão e ambiente
+.git
+.gitignore
+.dockerignore
+.env
+
+# Arquivos temporários e de upload
+tmp/
+coverage/
+
+# Documentações e relatórios (não são necessários para a API rodar)
+*.md
+*.txt

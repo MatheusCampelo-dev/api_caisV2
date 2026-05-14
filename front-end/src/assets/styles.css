@@ -1,0 +1,128 @@
+:root {
+  /* Cores principais */
+  --color-bg: #FFFFFF;
+  --color-bg-soft: #F5F4EE;
+  --color-bg-warm: #FAF1E6;
+  --color-surface: #FFFFFF;
+
+  /* Texto */
+  --color-text: #1A1A1A;
+  --color-text-secondary: #5F5E5A;
+  --color-text-tertiary: #888780;
+
+  /* Cores da marca CAIS */
+  --color-primary: #1F73E8;
+  --color-primary-soft: #E6F1FB;
+  --color-primary-border: #B5D4F4;
+  --color-primary-dark: #145ABF;
+
+  /* Acentos da identidade (logo CAIS) */
+  --color-accent-pink: #F18AAE;
+  --color-accent-yellow: #F2C94C;
+  --color-accent-green: #9DC25A;
+  --color-accent-blue: #79BCEA;
+
+  /* Semânticos */
+  --color-success: #3B6D11;
+  --color-success-soft: #EAF3DE;
+  --color-warning: #854F0B;
+  --color-warning-soft: #FAEEDA;
+  --color-danger: #A32D2D;
+  --color-danger-soft: #FCEBEB;
+
+  /* Bordas */
+  --color-border: rgba(0, 0, 0, 0.10);
+  --color-border-strong: rgba(0, 0, 0, 0.18);
+
+  /* Raios */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+
+  /* Tipografia */
+  --font-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-base);
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+}
+.btn-primary:hover { background: var(--color-primary-dark); }
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.btn-outline:hover { background: var(--color-primary-soft); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--color-border);
+}
+.btn-ghost:hover { background: var(--color-bg-soft); }
+
+.btn-icon {
+  padding: 8px;
+}

@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: cais_container_db_v2
+    restart: always
+    ports:
+      - "5432:5432"
+    # Ensina o Docker a ler as variáveis do arquivo .env do
+    env_file:
+      - .env
+    # Mapeia as variáveis do .env para as variáveis do PostgreSQL
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,5 +1,14 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "build": {
+    "env": {
+      "VITE_API_URL": "https://cais-api.onrender.com"
+    }
+  }
 }

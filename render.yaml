@@ -10,9 +10,9 @@ services:
         value: production
       - key: SUPABASE_URL
         value: https://txrmhhvwmlvdevqrfppo.supabase.co
+      - key: CORS_ORIGIN
+        value: https://cais-frontend-two.vercel.app
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: JWT_SECRET
-        sync: false
-      - key: CORS_ORIGIN
         sync: false

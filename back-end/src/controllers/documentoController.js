@@ -1,29 +1,36 @@
-const Documento = require("../models/documento");
-const Processo = require("../models/processo");
+const supabase = require("../../config/supabase");
 
 class DocumentoController {
-  // Método para a Vara atualizar o status de um documento
+  // Vara atualiza o status de um documento
   async update(req, res) {
     try {
-      const { id } = req.params; // ID do documento
-      const { status } = req.body; // 'entregue' ou 'requer_nova_entrega'
+      const { id } = req.params;
+      const { status } = req.body;
 
-      // 1. Procura o documento no banco
-      const documento = await Documento.findByPk(id);
+      const { data: documento } = await supabase
+        .from("documentos")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
 
       if (!documento) {
         return res.status(404).json({ error: "Documento não encontrado." });
       }
 
-      // 2. Atualiza os dados
-      // Armazenamos o ID da Vara que validou e a data atual
-      await documento.update({
-        status,
-        vara_id: req.usuarioId, // ID extraído do Token JWT da Vara
-        data_validacao: new Date(),
-      });
+      const { data: updated, error } = await supabase
+        .from("documentos")
+        .update({
+          status,
+          vara_id: req.usuarioId,
+          data_validacao: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
 
-      return res.json(documento);
+      if (error) throw error;
+
+      return res.json(updated);
     } catch (error) {
       console.error(error);
       return res
@@ -37,10 +44,13 @@ class DocumentoController {
     try {
       const { processo_id } = req.params;
 
-      const documentos = await Documento.findAll({
-        where: { processo_id },
-        order: [["nome_documento", "ASC"]],
-      });
+      const { data: documentos, error } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("processo_id", processo_id)
+        .order("nome_documento");
+
+      if (error) throw error;
 
       return res.json(documentos);
     } catch (error) {
@@ -51,18 +61,23 @@ class DocumentoController {
   // Adotante lista seus próprios documentos
   async meusDocs(req, res) {
     try {
-      const processo = await Processo.findOne({
-        where: { adotante_id: req.usuarioId },
-      });
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("adotante_id", req.usuarioId)
+        .maybeSingle();
 
       if (!processo) {
         return res.status(404).json({ error: "Processo não encontrado." });
       }
 
-      const documentos = await Documento.findAll({
-        where: { processo_id: processo.id },
-        order: [["nome_documento", "ASC"]],
-      });
+      const { data: documentos, error } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("processo_id", processo.id)
+        .order("nome_documento");
+
+      if (error) throw error;
 
       return res.json(documentos);
     } catch (error) {
@@ -70,19 +85,22 @@ class DocumentoController {
     }
   }
 
-  // Método para o ADOTANTE enviar o certificado digitalmente
+  // Adotante envia o certificado digitalmente
   async uploadCertificado(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'Nenhum arquivo enviado. Selecione um arquivo PDF, JPG ou PNG.' });
+        return res
+          .status(400)
+          .json({ error: "Nenhum arquivo enviado. Selecione um arquivo PDF, JPG ou PNG." });
       }
-      // O Multer já injeta o arquivo dentro de req.file
+
       const { filename } = req.file;
 
-      // 1. Descobrir qual é o processo do adotante logado
-      const processo = await Processo.findOne({
-        where: { adotante_id: req.usuarioId },
-      });
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("adotante_id", req.usuarioId)
+        .maybeSingle();
 
       if (!processo) {
         return res
@@ -90,27 +108,47 @@ class DocumentoController {
           .json({ error: "Processo não encontrado para este usuário." });
       }
 
-      // 2. Procura se já existe um registro de "Certificado" para este processo
-      // Se não existir, cria um.
-      const [documento, created] = await Documento.findOrCreate({
-        where: {
-          processo_id: processo.id,
-          nome_documento: "Certificado do Curso de Preparação",
-        },
-        defaults: {
-          status: "entregue", // Como ele acabou de enviar, consideramos entregue digitalmente
-          url_arquivo: filename, // Salva apenas o nome do arquivo gerado
-        },
-      });
+      // Verifica se já existe o documento de certificado para este processo
+      const { data: existingDoc } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("processo_id", processo.id)
+        .eq("nome_documento", "Certificado do Curso de Preparação")
+        .maybeSingle();
 
-      // Se já existia e ele está reenviando, apenas atualiza
-      if (!created) {
-        await documento.update({
-          status: "entregue",
-          url_arquivo: filename,
-          vara_id: null, // Zera a validação antiga, já que é um arquivo novo
-          data_validacao: null,
-        });
+      let documento;
+
+      if (existingDoc) {
+        // Já existe — atualiza
+        const { data: updated, error } = await supabase
+          .from("documentos")
+          .update({
+            status: "entregue",
+            url_arquivo: filename,
+            vara_id: null,
+            data_validacao: null,
+          })
+          .eq("id", existingDoc.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        documento = updated;
+      } else {
+        // Não existe — cria
+        const { data: created, error } = await supabase
+          .from("documentos")
+          .insert({
+            processo_id: processo.id,
+            nome_documento: "Certificado do Curso de Preparação",
+            status: "entregue",
+            url_arquivo: filename,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        documento = created;
       }
 
       return res.json(documento);

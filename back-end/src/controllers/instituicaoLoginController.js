@@ -1,17 +1,23 @@
 const jwt = require("jsonwebtoken");
-const Instituicao = require("../models/instituicao");
+const bcrypt = require("bcryptjs");
+const supabase = require("../../config/supabase");
 
 class InstituicaoLoginController {
   async store(req, res) {
     const { email, senha } = req.body;
 
-    const instituicao = await Instituicao.findOne({ where: { email } });
+    const { data: instituicao } = await supabase
+      .from("instituicoes")
+      .select("id, nome, email, senha_hash")
+      .eq("email", email)
+      .maybeSingle();
 
     if (!instituicao) {
       return res.status(401).json({ error: "Instituição não encontrada." });
     }
 
-    if (!(await instituicao.checkPassword(senha))) {
+    const senhaCorreta = await bcrypt.compare(senha, instituicao.senha_hash);
+    if (!senhaCorreta) {
       return res.status(401).json({ error: "Senha incorreta." });
     }
 

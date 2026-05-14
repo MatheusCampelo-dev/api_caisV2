@@ -4,23 +4,19 @@ const express = require("express");
 const cors = require("cors"); // 1. Importa o CORS
 const path = require("path");
 
-const routes = require("../src/routers"); // (Lembre de checar se a sua pasta é routes ou routers)
-require("./models");
+const routes = require("../src/routers");
 
 const app = express();
 
 // 2. Configura o CORS antes de tudo
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+  : ["http://localhost:5173"];
+
 app.use(
   cors({
-    // Define quem pode acessar a sua API
-    origin: [
-      "http://localhost:5173", // O seu front-end local
-      // 'http://192.168.0.x:5173', // Exemplo: IP local de colaboradores
-      // 'https://meu-dominio-em-producao.com' // Exemplo: URL quando for para nuvem
-    ],
-    // Quais métodos HTTP são permitidos
+    origin: corsOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"],
-    // Cabeçalhos permitidos (essencial para o Authorization mandar o Token JWT)
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );

@@ -1,16 +1,14 @@
-const Processo = require("../models/processo");
-const Documento = require("../models/documento");
-const Visita = require("../models/visitas");
-const Instituicao = require("../models/instituicao");
+const supabase = require("../../config/supabase");
 
 class NotificacoesController {
   // Deriva notificações do estado atual do processo, documentos e visitas
   async index(req, res) {
     try {
-      const processo = await Processo.findOne({
-        where: { adotante_id: req.usuarioId },
-        include: [{ model: Instituicao, as: "instituicao", attributes: ["nome"] }],
-      });
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("*, instituicao:instituicoes(nome)")
+        .eq("adotante_id", req.usuarioId)
+        .maybeSingle();
 
       if (!processo) {
         return res.json([]);
@@ -19,12 +17,20 @@ class NotificacoesController {
       const notificacoes = [];
 
       // Notificação: etapa avançou para fila de espera
-      if (["fila_de_espera", "aproximação", "convivência", "sentença"].includes(processo.etapa_atual)) {
+      if (
+        ["fila_de_espera", "aproximação", "convivência", "sentença"].includes(
+          processo.etapa_atual
+        )
+      ) {
         if (processo.data_habilitacao) {
           notificacoes.push({
             id: "etapa-fila",
             titulo: "Habilitação aprovada",
-            mensagem: `Seu processo de habilitação foi aprovado. Você está ${processo.etapa_atual === "fila_de_espera" ? `na posição ${processo.posicao_fila ?? "—"} da` : "fora da"} fila de espera.`,
+            mensagem: `Seu processo de habilitação foi aprovado. Você está ${
+              processo.etapa_atual === "fila_de_espera"
+                ? `na posição ${processo.posicao_fila ?? "—"} da`
+                : "fora da"
+            } fila de espera.`,
             quando: new Date(processo.data_habilitacao).toLocaleDateString("pt-BR"),
             tipo: "vara",
             icone: "ti-circle-check",
@@ -49,9 +55,12 @@ class NotificacoesController {
       }
 
       // Notificações de documentos
-      const documentos = await Documento.findAll({ where: { processo_id: processo.id } });
+      const { data: documentos } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("processo_id", processo.id);
 
-      for (const doc of documentos) {
+      for (const doc of documentos ?? []) {
         if (doc.status === "entregue") {
           notificacoes.push({
             id: `doc-entregue-${doc.id}`,
@@ -84,13 +93,13 @@ class NotificacoesController {
       }
 
       // Notificações de visitas agendadas
-      const visitas = await Visita.findAll({
-        where: { processo_id: processo.id },
-        include: [{ model: Instituicao, as: "instituicao", attributes: ["nome"] }],
-        order: [["data_visita", "DESC"]],
-      });
+      const { data: visitas } = await supabase
+        .from("visitas")
+        .select("*, instituicao:instituicoes(nome)")
+        .eq("processo_id", processo.id)
+        .order("data_visita", { ascending: false });
 
-      for (const visita of visitas) {
+      for (const visita of visitas ?? []) {
         const dataFormatada = visita.data_visita
           ? new Date(visita.data_visita + "T00:00:00").toLocaleDateString("pt-BR")
           : "—";
@@ -109,7 +118,10 @@ class NotificacoesController {
           });
         }
 
-        if (visita.status_visita === "realizada" && visita.status_relatorio === "enviado") {
+        if (
+          visita.status_visita === "realizada" &&
+          visita.status_relatorio === "enviado"
+        ) {
           notificacoes.push({
             id: `visita-realizada-${visita.id}`,
             titulo: "Relatório de visita enviado",

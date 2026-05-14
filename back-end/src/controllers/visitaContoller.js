@@ -1,33 +1,48 @@
-const Visita = require("../models/visitas");
-const Processo = require("../models/processo");
-const Adotante = require("../models/adotante");
-const Instituicao = require("../models/instituicao");
+const supabase = require("../../config/supabase");
 
 class VisitaController {
   // 1. Criar um novo agendamento — Instituição (usa seu próprio ID) ou Vara (informa instituicao_id no body)
   async store(req, res) {
     try {
-      const { processo_id, data_visita, hora_inicio, hora_fim, tipo_visita, instituicao_id: bodyInstituicaoId } = req.body;
-
-      const instituicao_id = req.usuarioRole === "VARA" ? bodyInstituicaoId : req.usuarioId;
-
-      if (!instituicao_id) {
-        return res.status(400).json({ error: "Informe a instituição responsável pela visita." });
-      }
-      if (!processo_id || !data_visita || !hora_inicio) {
-        return res.status(400).json({ error: "Processo, data e hora de início são obrigatórios." });
-      }
-
-      const visita = await Visita.create({
+      const {
         processo_id,
-        instituicao_id,
         data_visita,
         hora_inicio,
-        hora_fim: hora_fim || hora_inicio,
+        hora_fim,
         tipo_visita,
-        status_visita: "agendada",
-        status_relatorio: "pendente",
-      });
+        instituicao_id: bodyInstituicaoId,
+      } = req.body;
+
+      const instituicao_id =
+        req.usuarioRole === "VARA" ? bodyInstituicaoId : req.usuarioId;
+
+      if (!instituicao_id) {
+        return res
+          .status(400)
+          .json({ error: "Informe a instituição responsável pela visita." });
+      }
+      if (!processo_id || !data_visita || !hora_inicio) {
+        return res
+          .status(400)
+          .json({ error: "Processo, data e hora de início são obrigatórios." });
+      }
+
+      const { data: visita, error } = await supabase
+        .from("visitas")
+        .insert({
+          processo_id,
+          instituicao_id,
+          data_visita,
+          hora_inicio,
+          hora_fim: hora_fim || hora_inicio,
+          tipo_visita,
+          status_visita: "agendada",
+          status_relatorio: "pendente",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
 
       return res.status(201).json(visita);
     } catch (error) {
@@ -36,28 +51,24 @@ class VisitaController {
     }
   }
 
-  // 2. Listar visitas para a Agenda (Próximas e Realizadas)
+  // 2. Listar visitas para a Agenda (Próximas e Realizadas) — Instituição
   async index(req, res) {
     try {
-      const visitas = await Visita.findAll({
-        where: { instituicao_id: req.usuarioId },
-        include: [
-          {
-            model: Processo,
-            as: "processo",
-            attributes: ["numero_processo"],
-            include: [
-              { model: Adotante, as: "adotante", attributes: ["nome"] },
-            ],
-          },
-        ],
-        order: [
-          ["data_visita", "DESC"],
-          ["hora_inicio", "DESC"],
-        ],
-      });
+      const { data: visitas, error } = await supabase
+        .from("visitas")
+        .select(`
+          *,
+          processo:processos(
+            numero_processo,
+            adotante:adotantes(nome)
+          )
+        `)
+        .eq("instituicao_id", req.usuarioId)
+        .order("data_visita", { ascending: false })
+        .order("hora_inicio", { ascending: false });
 
-      return res.json(visitas);
+      if (error) throw error;
+      return res.json(visitas ?? []);
     } catch (error) {
       return res.status(500).json({ error: "Erro ao carregar agenda." });
     }
@@ -77,7 +88,11 @@ class VisitaController {
         recomendacao_vara,
       } = req.body;
 
-      const visita = await Visita.findByPk(id);
+      const { data: visita } = await supabase
+        .from("visitas")
+        .select("id, instituicao_id, status_relatorio, status_visita")
+        .eq("id", id)
+        .maybeSingle();
 
       if (!visita || visita.instituicao_id !== req.usuarioId) {
         return res.status(404).json({ error: "Visita não encontrada." });
@@ -89,48 +104,50 @@ class VisitaController {
           ? "realizada"
           : (bodyStatusVisita ?? visita.status_visita);
 
-      await visita.update({
-        status_relatorio: newStatusRelatorio,
-        status_visita: newStatusVisita,
-        criterio_vinculo,
-        criterio_comunicacao,
-        criterio_adaptacao,
-        parecer_descritivo,
-        recomendacao_vara,
-      });
+      const { data: updated, error } = await supabase
+        .from("visitas")
+        .update({
+          status_relatorio: newStatusRelatorio,
+          status_visita: newStatusVisita,
+          criterio_vinculo,
+          criterio_comunicacao,
+          criterio_adaptacao,
+          parecer_descritivo,
+          recomendacao_vara,
+        })
+        .eq("id", id)
+        .select()
+        .single();
 
-      return res.json(visita);
+      if (error) throw error;
+      return res.json(updated);
     } catch (error) {
       return res.status(500).json({ error: "Erro ao salvar relatório." });
     }
   }
+
   // Adotante consulta as visitas do seu processo (agenda do adotante)
   async showForAdotante(req, res) {
     try {
-      const processo = await Processo.findOne({
-        where: { adotante_id: req.usuarioId },
-      });
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("adotante_id", req.usuarioId)
+        .maybeSingle();
 
       if (!processo) {
         return res.json([]);
       }
 
-      const visitas = await Visita.findAll({
-        where: { processo_id: processo.id },
-        include: [
-          {
-            model: Instituicao,
-            as: "instituicao",
-            attributes: ["id", "nome", "email"],
-          },
-        ],
-        order: [
-          ["data_visita", "ASC"],
-          ["hora_inicio", "ASC"],
-        ],
-      });
+      const { data: visitas, error } = await supabase
+        .from("visitas")
+        .select("*, instituicao:instituicoes(id, nome, email)")
+        .eq("processo_id", processo.id)
+        .order("data_visita", { ascending: true })
+        .order("hora_inicio", { ascending: true });
 
-      return res.json(visitas);
+      if (error) throw error;
+      return res.json(visitas ?? []);
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: "Erro ao carregar agenda do adotante." });
@@ -142,15 +159,15 @@ class VisitaController {
     try {
       const { id } = req.params;
 
-      const visitas = await Visita.findAll({
-        where: { processo_id: id },
-        include: [
-          { model: Instituicao, as: "instituicao", attributes: ["id", "nome", "email"] },
-        ],
-        order: [["data_visita", "ASC"], ["hora_inicio", "ASC"]],
-      });
+      const { data: visitas, error } = await supabase
+        .from("visitas")
+        .select("*, instituicao:instituicoes(id, nome, email)")
+        .eq("processo_id", id)
+        .order("data_visita", { ascending: true })
+        .order("hora_inicio", { ascending: true });
 
-      return res.json(visitas);
+      if (error) throw error;
+      return res.json(visitas ?? []);
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: "Erro ao listar visitas do processo." });
@@ -161,19 +178,25 @@ class VisitaController {
   async showOne(req, res) {
     try {
       const { id } = req.params;
-      const visita = await Visita.findByPk(id, {
-        include: [
-          {
-            model: Processo,
-            as: "processo",
-            attributes: ["numero_processo"],
-            include: [{ model: Adotante, as: "adotante", attributes: ["nome"] }],
-          },
-        ],
-      });
+
+      const { data: visita, error } = await supabase
+        .from("visitas")
+        .select(`
+          *,
+          processo:processos(
+            numero_processo,
+            adotante:adotantes(nome)
+          )
+        `)
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) throw error;
+
       if (!visita || visita.instituicao_id !== req.usuarioId) {
         return res.status(404).json({ error: "Visita não encontrada." });
       }
+
       return res.json(visita);
     } catch (error) {
       console.error(error);
@@ -186,23 +209,15 @@ class VisitaController {
     try {
       const { processo_id } = req.params;
 
-      // A Vara só deve ver relatórios que já foram "enviados" (finalizados)
-      const visitas = await Visita.findAll({
-        where: {
-          processo_id,
-          status_relatorio: "enviado",
-        },
-        include: [
-          {
-            model: Instituicao,
-            as: "instituicao",
-            attributes: ["nome"], // Para saber qual abrigo escreveu o relatório
-          },
-        ],
-        order: [["data_visita", "DESC"]],
-      });
+      const { data: visitas, error } = await supabase
+        .from("visitas")
+        .select("*, instituicao:instituicoes(nome)")
+        .eq("processo_id", processo_id)
+        .eq("status_relatorio", "enviado")
+        .order("data_visita", { ascending: false });
 
-      return res.json(visitas);
+      if (error) throw error;
+      return res.json(visitas ?? []);
     } catch (error) {
       console.error(error);
       return res

@@ -1,17 +1,23 @@
 const jwt = require("jsonwebtoken");
-const Adotante = require("../models/adotante");
+const bcrypt = require("bcrypt");
+const supabase = require("../../config/supabase");
 
 class AdotanteLoginController {
   async store(req, res) {
     const { email, senha } = req.body;
 
-    const adotante = await Adotante.findOne({ where: { email } });
+    const { data: adotante } = await supabase
+      .from("adotantes")
+      .select("id, nome, cpf, email, senha_hash")
+      .eq("email", email)
+      .maybeSingle();
 
     if (!adotante) {
       return res.status(401).json({ error: "Usuário não encontrado." });
     }
 
-    if (!(await adotante.checkPassword(senha))) {
+    const senhaCorreta = await bcrypt.compare(senha, adotante.senha_hash);
+    if (!senhaCorreta) {
       return res.status(401).json({ error: "Senha incorreta." });
     }
 

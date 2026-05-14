@@ -1,19 +1,24 @@
-// src/controllers/VaraLoginController.js
 const jwt = require("jsonwebtoken");
-const Vara = require("../models/varas.js");
+const bcrypt = require("bcrypt");
+const supabase = require("../../config/supabase");
 
 class VaraLoginController {
   async store(req, res) {
     try {
       const { email, senha } = req.body;
 
-      const vara = await Vara.findOne({ where: { email } });
+      const { data: vara } = await supabase
+        .from("varas")
+        .select("id, nome_exibicao, comarca, senha_hash")
+        .eq("email", email)
+        .maybeSingle();
 
       if (!vara) {
         return res.status(401).json({ error: "Vara não encontrada." });
       }
 
-      if (!(await vara.checkPassword(senha))) {
+      const senhaCorreta = await bcrypt.compare(senha, vara.senha_hash);
+      if (!senhaCorreta) {
         return res.status(401).json({ error: "Senha inválida." });
       }
 
